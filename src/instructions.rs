@@ -1,5 +1,11 @@
 use crate::state::*;
 
+/*
+These functions will edit the CPU state according to how they're supposed to
+However, they do not need read or write to memory
+This must be done before calling them, and by using their return values
+*/
+
 fn will_overflow(a: u8, b: u8) -> bool {
     let c = a.wrapping_add(b);
     (((a >> 7) ^ (b >> 7)) == 0) && ((a >> 7) != (c >> 7))
@@ -30,12 +36,66 @@ pub fn asl(a: u8, sr: &mut u8) -> u8 {
     res
 }
 
-// bcc, bcs, beq
+fn add_offset(mut pc: u16, offset: i8) -> u16 {
+    if offset >= 0 {
+        pc += offset as u16;
+    } else {
+        pc -= -(offset as i16) as u16;
+    }
+    pc
+}
+
+pub fn bcc(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Carry, state.sr) == false {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
+
+pub fn bcs(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Carry, state.sr) == true {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
+
+pub fn beq(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Zero, state.sr) == true {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
+
 // bit
-// bmi, bne, bpl
+
+pub fn bmi(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Negative, state.sr) == true {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
+
+pub fn bne(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Zero, state.sr) == false {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
+
+pub fn bpl(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Negative, state.sr) == false {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
+
 // brk
-// bvc
-// bvs
+
+pub fn bvc(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Overflow, state.sr) == false {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
+
+pub fn bvs(offset: i8, state: &mut CPUState) {
+    if Flag::get(Flag::Overflow, state.sr) == true {
+        state.pc = add_offset(state.pc, offset);
+    }
+}
 
 pub fn clc(sr: &mut u8) {
     Flag::set(Flag::Carry, sr, false);
@@ -84,9 +144,16 @@ pub fn inc(a: u8, sr: &mut u8) -> u8 {
     res
 }
 
-// jmp, jsr
+// used for jmp, jsr
+pub fn jmp(addr: u16, state: &mut CPUState) {
+    state.pc = addr;
+}
 
-// lda, ldx, ldy
+// used for lda, ldx, ldy to update the status flags
+pub fn ldn(a: u8, sr: &mut u8) {
+    Flag::set(Flag::Zero, sr, a == 0);
+    Flag::set(Flag::Negative, sr, (a as i8) < 0);
+}
 
 pub fn lsr(a: u8, sr: &mut u8) -> u8 {
     Flag::set(Flag::Carry, sr, a & 1 == 1);
@@ -152,7 +219,41 @@ pub fn sei(sr: &mut u8) {
 
 // sta, stx, sty
 
-// tax, tay, tsx, txa, txs, tya
+pub fn tax(state: &mut CPUState) {
+    Flag::set(Flag::Negative, &mut state.sr, (state.a as i8) < 0);
+    Flag::set(Flag::Zero, &mut state.sr, state.a == 0);
+    state.x = state.a;
+}
+
+pub fn tay(state: &mut CPUState) {
+    Flag::set(Flag::Negative, &mut state.sr, (state.a as i8) < 0);
+    Flag::set(Flag::Zero, &mut state.sr, state.a == 0);
+    state.y = state.a;
+}
+
+pub fn tsx(state: &mut CPUState) {
+    Flag::set(Flag::Negative, &mut state.sr, (state.sp as i8) < 0);
+    Flag::set(Flag::Zero, &mut state.sr, state.sp == 0);
+    state.x = state.sp;
+}
+
+pub fn txa(state: &mut CPUState) {
+    Flag::set(Flag::Negative, &mut state.sr, (state.x as i8) < 0);
+    Flag::set(Flag::Zero, &mut state.sr, state.x == 0);
+    state.a = state.x;
+}
+
+pub fn txs(state: &mut CPUState) {
+    Flag::set(Flag::Negative, &mut state.sr, (state.x as i8) < 0);
+    Flag::set(Flag::Zero, &mut state.sr, state.x == 0);
+    state.sp = state.x;
+}
+
+pub fn tya(state: &mut CPUState) {
+    Flag::set(Flag::Negative, &mut state.sr, (state.y as i8) < 0);
+    Flag::set(Flag::Zero, &mut state.sr, state.y == 0);
+    state.a = state.y;
+}
 
 #[cfg(test)]
 mod tests {
