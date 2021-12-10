@@ -5,6 +5,7 @@ pub enum Flag {
     Interrupt = 2,
     Decimal = 3,
     Break = 4,
+    Unused = 5,
     Overflow = 6,
     Negative = 7,
 }
@@ -47,24 +48,12 @@ impl CPUState {
             halted: false,
         }
     }
-}
 
-pub struct Memory {
-    memory: Vec<u8>,
-}
-
-impl Memory {
-    pub fn read(&self, addr: u16) -> u8 {
-        return self.memory[addr as usize];
+    pub fn get_flag(&self, flag: Flag) -> bool {
+        Flag::get(flag, self.sr)
     }
 
-    pub fn write(&mut self, addr: u16, val: u8) {
-        self.memory[addr as usize] = val;
-    }
-
-    pub fn new(size: usize) -> Memory {
-        Memory {
-            memory: vec![0; size]
-        }
+    pub fn set_flag(&mut self, flag: Flag, val: bool) {
+        Flag::set(flag, &mut self.sr, val);
     }
 }

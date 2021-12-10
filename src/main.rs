@@ -1,9 +1,11 @@
 use core::panic;
 use crate::state::*;
 use crate::instructions::*;
+use crate::memory::*;
 
 mod state;
 mod instructions;
+mod memory;
 
 type Opcode = u8;
 
@@ -27,26 +29,27 @@ impl Reg for Opcode {
     } 
 }
 
-fn get_addr_from_opcode(opcode: u8, state: &CPUState, memory: &mut Memory) -> u16 {
+// returns the address to use for the operand, and the number of cycles it takes
+fn get_addr_from_opcode(opcode: u8, state: &CPUState, memory: &mut Memory) -> (u16, usize) {
     let low_byte = memory.read(state.pc + 1);
     let high_byte = memory.read(state.pc + 2);
     let abs_adr = low_byte as u16 | (high_byte as u16) << 8;
     match opcode.b() {
         // X,ind
         0 => {
-            memory.read((low_byte + state.x) as u16 | ((low_byte + state.x + 1) as u16) << 8) as u16
+            (memory.read((low_byte + state.x) as u16 | ((low_byte + state.x + 1) as u16) << 8) as u16, 6)
         },
         // zpg
         1 => {
-            low_byte as u16
+            (low_byte as u16, 3)
         },
         // #
         2 => {
-            state.pc + 1
+            (state.pc + 1, 2)
         },
         // abs
         3 => {
-            (low_byte as u16) | ((high_byte as u16) << 8)
+            ((low_byte as u16) | ((high_byte as u16) << 8), 4)
         },
         // ind,Y
         4 => {
@@ -65,7 +68,7 @@ fn get_addr_from_opcode(opcode: u8, state: &CPUState, memory: &mut Memory) -> u1
             abs_adr + state.x as u16
         },
         // opcode.b() is guaranteed to be 3 bits, this is not possible
-        _ => panic!("invalid opcode")
+        _ => panic!("not possible")
     }
 }
 
@@ -77,44 +80,45 @@ fn step_instr(state: &mut CPUState, memory: &mut Memory) {
 
         },
         1 => {
-            let addr = get_addr_from_opcode(opcode, state, memory);
+            let (addr, cycles) = get_addr_from_opcode(opcode, state, memory);
             let m = memory.read(addr);
             match opcode.a() {
                 // ORA
                 0 => {
-                    state.a = ora(state.a, m, &mut state.sr);
+                    ora(state, state.a, m);
                 },
                 // AND
                 1 => {
-                    state.a = and(state.a, m, &mut state.sr);
+                    and(state, state.a, m);
                 },
                 // EOR
                 2 => {
-                    state.a = eor(state.a, m, &mut state.sr);
+                    eor(state, state.a, m);
                 },
                 // ADC
                 3 => {
-                    state.a = adc(state.a, m, &mut state.sr);
+                    adc(state, state.a, m);
                 },
                 // STA
                 4 => {
                     if opcode.b() != 2 {
                         memory.write(addr, state.a);
+                    } else {
+                        panic!("illegal opcode");
                     }
                 },
                 // LDA
                 5 => {
                     state.a = memory.read(addr);
-                    Flag::set(Flag::Zero, &mut state.sr, state.a == 0);
-                    Flag::set(Flag::Negative, &mut state.sr, (state.a as i8) < 0);
+                    ldn(state, state.a);
                 },
                 // CMP
                 6 => {
-                    cmp(state.a, m, &mut state.sr);
+                    cmp(state, state.a, m);
                 },
                 // SmC
                 7 => {
-                    state.a = sbc(state.a, m, &mut state.sr);
+                    sbc(state, state.a, m);
                 },
                 _ => panic!("not possible")
             }
@@ -125,13 +129,13 @@ fn step_instr(state: &mut CPUState, memory: &mut Memory) {
                 // ASL
                 0 => {
                     if opcode.b() & 0b1 == 1 {
-                        let addr = get_addr_from_opcode(opcode, state, memory);
+                        let (addr, cycles) = get_addr_from_opcode(opcode, state, memory);
                         let mut a = memory.read(addr);
-                        a = asl(a, &mut state.sr);
+                        a = asl(state, a);
                         memory.write(addr, a);
 
                     } else if opcode.b() == 2 {
-                        state.a = asl(state.a, &mut state.sr);
+                        state.a = asl(state, state.a);
 
                     } else {
                         panic!("illegal instruction");
@@ -141,13 +145,13 @@ fn step_instr(state: &mut CPUState, memory: &mut Memory) {
                 // ROL
                 1 => {
                     if opcode.b() & 0b1 == 1 {
-                        let addr = get_addr_from_opcode(opcode, state, memory);
+                        let (addr, cycles) = get_addr_from_opcode(opcode, state, memory);
                         let mut a = memory.read(addr);
-                        a = asl(a, &mut state.sr);
+                        a = asl(state, a);
                         memory.write(addr, a);
 
                     } else if opcode.b() == 2 {
-                        state.a = rol(state.a, &mut state.sr)
+                        state.a = rol(state, state.a)
 
                     } else {
                         panic!("illegal instruction");
