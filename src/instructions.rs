@@ -14,30 +14,7 @@ fn will_overflow(a: u8, b: u8) -> bool {
     (((a >> 7) ^ (b >> 7)) == 0) && ((a >> 7) != (c >> 7))
 }
 
-pub fn adc(state: &mut CPUState, a: u8, b: u8) {
-    let a16 = a as u16 + b as u16 + state.get_flag(Flag::Carry) as u16;
-    let res = a16 as u8;
-    state.set_flag(Flag::Zero, res == 0);
-    state.set_flag(Flag::Negative, (res as i8) < 0);
-    state.set_flag(Flag::Carry, a16 > u8::MAX as u16);
-    state.set_flag(Flag::Overflow, will_overflow(a, b));
-    state.a = res;
-}
 
-pub fn and(state: &mut CPUState, a: u8, b: u8) {
-    let res = a & b;
-    state.set_flag(Flag::Zero, res == 0);
-    state.set_flag(Flag::Negative, (res as i8) < 0);
-    state.a = res
-}
-
-pub fn asl(state: &mut CPUState, a: u8) -> u8 {
-    state.set_flag(Flag::Carry, a >> 7 == 1);
-    let res = a << 1;
-    state.set_flag(Flag::Zero, res == 0);
-    state.set_flag(Flag::Negative, (res as i8) < 0);
-    res
-}
 
 fn add_offset(mut pc: u16, offset: i8) -> u16 {
     if offset >= 0 {
@@ -235,16 +212,7 @@ pub fn ror(state: &mut CPUState, a: u8) -> u8 {
 
 // rti, rts
 
-pub fn sbc(state: &mut CPUState, a: u8, b: u8) {
-    let b = (-(b as i8)) as u8;
-    let a16 = a as u16 + b.wrapping_sub(state.get_flag(Flag::Carry) as u8) as u16;
-    let res = a16 as u8;
-    state.set_flag(Flag::Zero, res == 0);
-    state.set_flag(Flag::Negative, (res as i8) < 0);
-    state.set_flag(Flag::Carry, a16 > u8::MAX as u16);
-    state.set_flag(Flag::Overflow, will_overflow(a, b));
-    state.a = res;
-}
+
 
 pub fn sec(state: &mut CPUState) {
     state.set_flag(Flag::Carry, true);
